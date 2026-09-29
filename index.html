@@ -1,0 +1,156 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>เช็คชื่อเปิดหมวก - ชนพ.</title>
+    <style>
+        body {
+            font-family: 'Sarabun', sans-serif;
+            background-color: #f4f7f6;
+            margin: 0;
+            padding: 20px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+        .container {
+            background-color: white;
+            padding: 30px;
+            border-radius: 12px;
+            box-shadow: 0 4px 10px rgba(0,0,0,0.1);
+            width: 100%;
+            max-width: 400px;
+        }
+        h2 {
+            text-align: center;
+            color: #333;
+            margin-bottom: 20px;
+        }
+        .form-group {
+            margin-bottom: 15px;
+        }
+        label {
+            display: block;
+            margin-bottom: 5px;
+            color: #666;
+            font-weight: bold;
+        }
+        input {
+            width: 100%;
+            padding: 10px;
+            border: 1px solid #ddd;
+            border-radius: 6px;
+            box-sizing: border-box;
+            font-size: 16px;
+        }
+        button {
+            width: 100%;
+            padding: 12px;
+            background-color: #007bff;
+            color: white;
+            border: none;
+            border-radius: 6px;
+            font-size: 16px;
+            font-weight: bold;
+            cursor: pointer;
+            transition: background-color 0.3s;
+            margin-top: 10px;
+        }
+        button:hover {
+            background-color: #0056b3;
+        }
+        #loadingMsg {
+            display: none;
+            text-align: center;
+            color: #007bff;
+            margin-top: 15px;
+            font-weight: bold;
+        }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <h2>เช็คชื่อเปิดหมวก ชนพ.</h2>
+    <form id="checkinForm" name="checkinForm">
+        <div class="form-group">
+            <label for="studentId">รหัสนักศึกษา</label>
+            <input type="text" id="studentId" name="studentId" placeholder="กรอกรหัสนักศึกษา 11 หลัก" required>
+        </div>
+        <div class="form-group">
+            <label for="name">ชื่อ - นามสกุล</label>
+            <input type="text" id="name" name="name" placeholder="นาย/นางสาว..." required>
+        </div>
+        
+        <!-- ซ่อน input พิกัดไว้ เพื่อส่งไปกับฟอร์ม -->
+        <input type="hidden" id="latitude" name="latitude">
+        <input type="hidden" id="longitude" name="longitude">
+
+        <button type="submit" id="submitBtn">บันทึกการเช็คชื่อ (พร้อมแนบพิกัด)</button>
+        <div id="loadingMsg">กำลังดึงตำแหน่งที่ตั้งของคุณ...</div>
+    </form>
+</div>
+
+<script>
+    // === นำ URL ของ Web App ใหม่ มาวางตรงนี้ ===
+    const scriptURL = 'https://script.google.com/macros/s/AKfycbzU_4eAmpSjouGmLznvvnt5O6xcFXNU_G8qW6zD4_1CBfOVQMe5G5YmmuIjAexNimg1/exec'; 
+    const form = document.forms['checkinForm'];
+    const submitBtn = document.getElementById('submitBtn');
+    const loadingMsg = document.getElementById('loadingMsg');
+
+    form.addEventListener('submit', e => {
+        e.preventDefault();
+        
+        // ซ่อนปุ่มและแสดงข้อความโหลด
+        submitBtn.style.display = 'none';
+        loadingMsg.style.display = 'block';
+        loadingMsg.innerText = 'กำลังดึงตำแหน่งพิกัด GPS...';
+
+        // ขอสิทธิ์และดึงตำแหน่งปัจจุบัน
+        if (navigator.geolocation) {
+            navigator.geolocation.getCurrentPosition(
+                (position) => {
+                    // หากดึงตำแหน่งสำเร็จ ให้เก็บค่าลงใน input ที่ซ่อนไว้
+                    document.getElementById('latitude').value = position.coords.latitude;
+                    document.getElementById('longitude').value = position.coords.longitude;
+                    
+                    // ส่งข้อมูลไปยัง Google Sheets
+                    sendDataToGoogleSheets();
+                },
+                (error) => {
+                    // หากผู้ใช้ไม่อนุญาต หรือดึงตำแหน่งไม่ได้
+                    alert("⚠️ ไม่สามารถเช็คชื่อได้: คุณต้องกดยอมรับ (Allow) ให้เข้าถึงตำแหน่งที่ตั้ง (Location) เสียก่อนครับ");
+                    submitBtn.style.display = 'block';
+                    loadingMsg.style.display = 'none';
+                },
+                { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 } // บังคับดึงพิกัดใหม่และใช้ความแม่นยำสูง
+            );
+        } else {
+            alert("เบราว์เซอร์ของคุณไม่รองรับการระบุตำแหน่ง");
+            submitBtn.style.display = 'block';
+            loadingMsg.style.display = 'none';
+        }
+    });
+
+    function sendDataToGoogleSheets() {
+        loadingMsg.innerText = 'กำลังบันทึกข้อมูล...';
+        
+        fetch(scriptURL, { method: 'POST', body: new FormData(form)})
+            .then(response => {
+                alert("เช็คชื่อสำเร็จ! ระบบบันทึกพิกัดของคุณเรียบร้อยแล้ว");
+                form.reset();
+                submitBtn.style.display = 'block';
+                loadingMsg.style.display = 'none';
+            })
+            .catch(error => {
+                console.error('Error!', error.message);
+                alert("เกิดข้อผิดพลาดในการบันทึกข้อมูล กรุณาลองใหม่อีกครั้ง");
+                submitBtn.style.display = 'block';
+                loadingMsg.style.display = 'none';
+            });
+    }
+</script>
+
+</body>
+</html>
